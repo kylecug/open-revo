@@ -24,11 +24,9 @@ jobs:
         with:
           node-version: 20
 
+      # pnpm/action-setup@v4 bundles an old pnpm that crashes on this repo's pnpm-workspace.yaml.
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-          run_install: false
+        run: npm install -g pnpm@10
 
       - name: Setup Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
