@@ -313,10 +313,10 @@ description: Official OpenRevo expert agent skill for developing third-party plu
   * 状态监听：`window.addEventListener('message', e => { if (e.data?.type === 'OPENREVO_SHORTCUTS') ... })`
 
 ### 6.5 多模具底层驱动网关指令 (Raw Hardware Driver Gateway)
-赋能高阶极客根据模具协议直接读写主板 EC 或向邮箱下发原生报文，带物理防爆盾保护：
+赋能高阶极客根据模具协议直接读写主板 EC 或向邮箱下发原生报文。防爆盾会拒绝越界访问；敏感寄存器写入和邮箱调用在过渡期内只审计放行，请在 manifest 中声明实际用到的 `hardware:raw_ec_read`、`hardware:raw_ec_write`、`hardware:raw_mailbox`：
 * `invoke('get_raw_ec_capabilities') -> RawEcCapabilities`：嗅探当前机型可用的底层协议（同方 IOCTL、宝龙达 Mailbox、通用 WMI、ITE HID）
 * `invoke('raw_ec_read', { request: { protocol: string, address: number } }) -> number`：读取单字节 EC 物理寄存器数值
-* `invoke('raw_ec_write', { request: { protocol: string, address: number, value: number } }) -> boolean`：写入单字节 EC 物理寄存器数值（受物理防爆盾拦截保护）
+* `invoke('raw_ec_write', { request: { protocol: string, address: number, value: number } }) -> boolean`：写入单字节 EC 物理寄存器数值（经过防爆盾校验）
 * `invoke('raw_mailbox_invoke', { request: { in_bytes: number[] } }) -> number[]`：向宝龙达等邮箱下发原始多字节报文
 * **沙盒 iframe postMessage 桥**：
   * 请求读：`window.parent.postMessage({ action: 'RAW_EC_READ', payload: { protocol, address } }, '*')`

@@ -9,7 +9,42 @@ use sha2::{Digest, Sha256};
 use tauri::Emitter;
 use super::types::DownloadProgressPayload;
 
-/// Downloads update asset with real-time progress events and SHA256 integrity verification
+/// Public half of the release signing key, embedded at build time (base64 line of minisign.pub).
+const UPDATE_PUBLIC_KEY: Option<&str> = option_env!("OPENREVO_UPDATE_PUBKEY");
+
+/// Verifies the downloaded file against "<download_url>.minisig" using the embedded public key.
+/// Builds with an embedded key always require a valid signature. The SHA256 in the manifest
+/// comes from the same channel as the file, so only this check proves who published it.
+fn verify_update_signature(agent: &ureq::Agent, download_url: &str, file_path: &Path) -> Result<(), String> {
+    let public_key = match UPDATE_PUBLIC_KEY.map(str::trim).filter(|key| !key.is_empty()) {
+        Some(key) => key,
+        None => {
+            crate::log_warn!("UPDATER", "This build has no update public key; skipping signature verification.");
+            return Ok(());
+        }
+    };
+
+    let public_key = minisign_verify::PublicKey::from_base64(public_key)
+        .map_err(|e| format!("Embedded update public key is invalid: {}", e))?;
+
+    let signature_url = format!("{}.minisig", download_url);
+    let signature_text = agent.get(&signature_url)
+        .call()
+        .map_err(|e| format!("Failed to download update signature: {}", e))?
+        .into_string()
+        .map_err(|e| format!("Failed to read update signature: {}", e))?;
+
+    let signature = minisign_verify::Signature::decode(&signature_text)
+        .map_err(|e| format!("Update signature is malformed: {}", e))?;
+
+    let contents = std::fs::read(file_path)
+        .map_err(|e| format!("Failed to read downloaded update: {}", e))?;
+
+    public_key.verify(&contents, &signature, false)
+        .map_err(|e| format!("Update signature verification failed: {}", e))
+}
+
+/// Downloads update asset with real-time progress events, SHA256 and signature verification
 pub async fn download_update_asset<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     download_url: &str,
@@ -119,9 +154,19 @@ fn download_update_asset_sync<R: tauri::Runtime>(
     let calculated_sha256 = format!("{:x}", hasher.finalize());
     crate::log_info!("UPDATER", "Download complete. Expected SHA: {}, Calculated: {}", expected_sha256, calculated_sha256);
 
-    if !expected_sha256.is_empty() && !calculated_sha256.eq_ignore_ascii_case(expected_sha256) {
+    if expected_sha256.trim().is_empty() {
+        let _ = std::fs::remove_file(&partial_file_path);
+        return Err("Integrity check failed! Update manifest does not provide a SHA256 hash".to_string());
+    }
+
+    if !calculated_sha256.eq_ignore_ascii_case(expected_sha256.trim()) {
         let _ = std::fs::remove_file(&partial_file_path);
         return Err(format!("Integrity check failed! Expected hash: {}, got: {}", expected_sha256, calculated_sha256));
+    }
+
+    if let Err(e) = verify_update_signature(&agent, download_url, &partial_file_path) {
+        let _ = std::fs::remove_file(&partial_file_path);
+        return Err(e);
     }
 
     // Move to final path

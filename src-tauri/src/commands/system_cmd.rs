@@ -407,8 +407,9 @@ pub fn open_log_file() -> Result<(), String> {
     if !path.exists() {
         let _ = std::fs::write(&path, b"[OpenRevo Log Initialized]\n");
     }
-    let _ = std::process::Command::new("cmd")
-        .args(["/c", "start", "", &path.to_string_lossy()])
+    // Avoid cmd.exe: a '&' in the user profile path would be parsed as a command separator.
+    let _ = std::process::Command::new("explorer.exe")
+        .arg(&path)
         .spawn();
     Ok(())
 }

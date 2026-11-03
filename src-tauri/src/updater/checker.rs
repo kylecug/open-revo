@@ -5,8 +5,24 @@ use std::time::Duration;
 use semver::Version;
 use super::types::{ReleaseManifest, UpdateCheckResult};
 
-pub const DEFAULT_GITHUB_URL: &str = "https://raw.githubusercontent.com/faintonce/open-revo/main/latest.json";
-pub const DEFAULT_GITEE_URL: &str = "https://gitee.com/faintonce/open-revo/raw/master/latest.json";
+// Forks should set these at build time so their builds do not self-update from upstream.
+pub const DEFAULT_GITHUB_URL: &str = match option_env!("OPENREVO_UPDATE_GITHUB_URL") {
+    Some(url) => url,
+    None => "https://raw.githubusercontent.com/faintonce/open-revo/main/latest.json",
+};
+pub const DEFAULT_GITEE_URL: &str = match option_env!("OPENREVO_UPDATE_GITEE_URL") {
+    Some(url) => url,
+    None => "https://gitee.com/faintonce/open-revo/raw/master/latest.json",
+};
+
+/// The manifest override runs inside an elevated process, so release builds must ignore it.
+fn debug_update_url_override() -> Option<String> {
+    if cfg!(debug_assertions) {
+        std::env::var("OPENREVO_UPDATE_URL").ok()
+    } else {
+        None
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DistributionType {
@@ -102,7 +118,7 @@ pub fn race_manifest_fetch_sync(
     preferred_source: Option<&str>,
 ) -> Result<(String, ReleaseManifest), String> {
     // 1. Check local debug mock override (supports both http(s) URL and direct file path)
-    if let Ok(mock_url) = std::env::var("OPENREVO_UPDATE_URL") {
+    if let Some(mock_url) = debug_update_url_override() {
         let trimmed = mock_url.trim();
         if !trimmed.is_empty() {
             if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
@@ -241,7 +257,7 @@ fn check_for_updates_sync(preferred_source: Option<&str>) -> Result<UpdateCheckR
         asset_info.sources.gitee.clone()
     } else if !asset_info.sources.github.is_empty() {
         asset_info.sources.github.clone()
-    } else if let Ok(mock_url) = std::env::var("OPENREVO_UPDATE_URL") {
+    } else if let Some(mock_url) = debug_update_url_override() {
         let base = mock_url.rsplit_once('/').map(|(b, _)| b).unwrap_or("http://127.0.0.1:8080");
         format!("{}/{}", base, asset_info.filename)
     } else {

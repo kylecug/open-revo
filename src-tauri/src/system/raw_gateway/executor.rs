@@ -2,7 +2,7 @@
 // Bridges high-level plugin requests directly into Tongfang IOCTL, Baolongda Mailbox, Generic WMI, or ITE buses.
 
 use super::types::{RawEcProtocol, RawEcReadRequest, RawEcWriteRequest, RawMailboxRequest};
-use super::shield::{validate_read_address, validate_write_operation};
+use super::shield::{validate_mailbox_invoke, validate_read_address, validate_write_operation};
 
 pub fn execute_raw_read(req: RawEcReadRequest) -> Result<u8, String> {
     validate_read_address(req.address)?;
@@ -61,6 +61,8 @@ pub fn execute_raw_mailbox(req: RawMailboxRequest) -> Result<Vec<u8>, String> {
     if req.in_bytes.len() > 256 {
         return Err("Mailbox buffer exceeds maximum 256-byte security boundary".to_string());
     }
+
+    validate_mailbox_invoke(req.in_bytes.len())?;
 
     crate::hal::declarative::invoke_raw_mailbox(&req.in_bytes)
 }
