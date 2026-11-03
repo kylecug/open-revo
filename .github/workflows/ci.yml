@@ -49,4 +49,10 @@ jobs:
 
       - name: Run Rust Unit Tests
         working-directory: src-tauri
-        run: cargo test --workspace --lib --no-fail-fast
+        shell: pwsh
+        run: |
+          # Test executables lack the manifest tauri-build embeds, so they would load comctl32 v5
+          # and exit with STATUS_ENTRYPOINT_NOT_FOUND.
+          $sep = [char]0x1f
+          $env:CARGO_ENCODED_RUSTFLAGS = "-Clink-arg=/MANIFEST:EMBED$sep-Clink-arg=/MANIFESTDEPENDENCY:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"
+          cargo test --workspace --lib --no-fail-fast
