@@ -2,6 +2,8 @@ name: Release & Cloud Build
 
 on:
   push:
+    branches:
+      - 'build/**'
     tags:
       - 'v*'
   workflow_dispatch:
