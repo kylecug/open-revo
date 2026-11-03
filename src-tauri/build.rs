@@ -412,6 +412,13 @@ fn git_short_hash() -> String {
 fn main() {
     generate_hardware_vault();
 
+    // Test executables do not get the manifest tauri-build embeds, so they would load comctl32 v5
+    // and exit with STATUS_ENTRYPOINT_NOT_FOUND. This applies to test targets only.
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        println!("cargo:rustc-link-arg-tests=/MANIFEST:EMBED");
+        println!("cargo:rustc-link-arg-tests=/MANIFESTDEPENDENCY:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'");
+    }
+
     let git_hash = git_short_hash();
     if !git_hash.is_empty() {
         println!("cargo:rustc-env=OPENREVO_GIT_COMMIT={git_hash}");

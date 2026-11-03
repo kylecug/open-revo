@@ -54,10 +54,16 @@
   "actions": {
     "read_fan_rpm": {
       "channel": "wmi_mailbox",
-      "input": [2, 1],
+      "input": [2, 1, 0],
       "parse": {
-        "cpu_rpm": { "offset": 1, "type": "u16_le" },
-        "gpu_rpm": { "offset": 3, "type": "u16_le" }
+        "cpu_rpm": { "offset": 1, "type": "u16_le" }
+      }
+    },
+    "read_second_fan_rpm": {
+      "channel": "wmi_mailbox",
+      "input": [2, 1, 1],
+      "parse": {
+        "gpu_rpm": { "offset": 1, "type": "u16_le" }
       }
     },
     "get_power_mode": {

@@ -7,6 +7,7 @@ pub mod service_mgr;
 pub mod device_switches;
 pub mod switches;
 pub mod cpu_monitor;
+pub mod esif_thermal;
 pub mod power_listener;
 pub mod power_mode;
 pub mod power;
