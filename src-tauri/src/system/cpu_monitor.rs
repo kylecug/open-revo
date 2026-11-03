@@ -184,6 +184,7 @@ impl CpuMonitor {
 
             let _num_cpus = num_cpus();
             let is_ultrabook = crate::hal::platform_probe::is_ultrabook();
+            let mut esif_thermal = crate::system::esif_thermal::EsifThermalReader::new();
 
             loop {
                 if is_ultrabook && !crate::system::telemetry::is_telemetry_active() {
@@ -250,6 +251,12 @@ impl CpuMonitor {
                     }
                 }
 
+                // Intel DTT sensors are live; ACPI thermal zones can be fixed firmware values.
+                let esif_temp = esif_thermal.read_cpu_temp();
+                if let Some(temp) = esif_temp {
+                    monitor_clone.cpu_temp.store(temp, Ordering::SeqCst);
+                }
+
                 // 3. Read real-time Thermal Zone temperature, Energy Meter power & Processor Performance via PDH
                 if let (Some(q), Some(ref collect), Some(ref get_array)) = (
                     pdh_query,
@@ -260,7 +267,7 @@ impl CpuMonitor {
                         collect(q);
 
                         // A. Thermal zone
-                        if let Some(c) = pdh_tz_counter {
+                        if let Some(c) = pdh_tz_counter.filter(|_| esif_temp.is_none()) {
                             let mut buf_size = 0u32;
                             let mut item_count = 0u32;
                             let _ = get_array(c, 0x00000200 /* PDH_FMT_DOUBLE */, &mut buf_size, &mut item_count, std::ptr::null_mut());

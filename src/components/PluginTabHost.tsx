@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { HardwareState, PowerMode } from '../types/hardware';
 import { CustomPluginItem } from './PluginsView';
+import { auditPluginAction } from '../plugins/pluginAudit';
 import { AlertCircle, FolderOpen, RotateCcw, Loader2, ExternalLink, Play, Square } from 'lucide-react';
 
 export interface PluginServiceStatus {
@@ -139,10 +140,12 @@ export const PluginTabHost: React.FC<PluginTabHostProps> = ({ plugin, status }) 
   // Handle postMessage from sandboxed plugin iframe
   useEffect(() => {
     const handleMessage = async (e: MessageEvent) => {
-      // Security: Only accept messages intended for OpenRevo
+      // Security: Only accept messages from this host's own plugin iframe
+      if (!iframeRef.current || e.source !== iframeRef.current.contentWindow) return;
       if (!e.data || typeof e.data !== 'object' || !e.data.action) return;
 
       const { action, payload } = e.data;
+      auditPluginAction(plugin.id, action);
       try {
         switch (action) {
           case 'SET_POWER_MODE':

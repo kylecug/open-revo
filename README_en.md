@@ -18,7 +18,7 @@
 
 **A modern, lightweight, microkernelized full-stack open-source control center for Mechrevo (MECHREVO / TongFang) gaming laptops**  
 Evolved from a lean replacement for bloated, laggy, memory-leaking official background services into an **extensible hardware microkernel platform** for the entire TongFang chassis ecosystem.  
-Portable single-binary (~2MB / ~15MB RAM), zero official dependencies, open hardware driver gateways, and native automation event hubs.
+Portable single-binary (~10MB executable, ~3MB archive), zero official dependencies, open hardware driver gateways, and native automation event hubs.
 
 </div>
 
@@ -50,9 +50,9 @@ Portable single-binary (~2MB / ~15MB RAM), zero official dependencies, open hard
 
 ## 💡 Why OpenRevo? (From Control Center to Microkernel Platform)
 
-* ⚡ **Ultra-Lightweight & Agile**: Powered by **Native Rust + Tauri v2 + Webview2**, single portable executable is only **~2MB**, idle memory footprint down to **~15MB**, completely eliminating bloated background services.
+* ⚡ **Ultra-Lightweight & Agile**: Powered by **Native Rust + Tauri v2 + Webview2**, the single portable executable is **~10MB** (~3MB as a 7z archive), completely eliminating bloated background services.
 * 🧠 **Universal Watcher & Trigger Hub (Microkernel Automation)**: Built-in native monitoring channels: hardware telemetry thresholds, foreground app/game detection, AC/DC & lid power edge streams, and controlled EC delta tracking. Supports **Declarative Manifest Rules** without writing frontend JavaScript.
-* 🛡️ **Raw Hardware Driver Gateway & Blast Shield**: Opens 4 low-level chassis driver protocols: `TongfangDirectEc`, `BldWmiMailbox`, `GenericAcpiWmi`, and `IteLightingBus`. Built-in **Hardware Blast Shield** asserts memory boundaries and blacklists critical registers for physical safety.
+* 🛡️ **Raw Hardware Driver Gateway & Blast Shield**: Opens 4 low-level chassis driver protocols: `TongfangDirectEc`, `BldWmiMailbox`, `GenericAcpiWmi`, and `IteLightingBus`. The built-in **Hardware Blast Shield** rejects out-of-bounds access and audits writes to sensitive registers. Third-party plugins currently hold broad privileges, so install only plugins you trust.
 * ⌨️ **Low-Level Global Keyboard Shortcut Bus (`WH_KEYBOARD_LL`)**: High-performance non-blocking key state tracking, modifier key debouncing, full-screen gaming passthrough, and native lightweight OSD overlay.
 * 🌈 **Dual Lighting Engines**: High-framerate **BetterRGB spatial streaming (15~60 FPS)** + **Factory hardware firmware (0% CPU)** with seamless handover upon power change or app exit.
 * 🧊 **Smart BLE Liquid Cooler Hub**: Native Bluetooth Low Energy communication with zero pairing hassle; custom fan/pump curves and safety alarms.
@@ -84,7 +84,7 @@ Portable single-binary (~2MB / ~15MB RAM), zero official dependencies, open hard
 │                                  │ Filtered by
 │  ┌───────────────────────────────▼───────────────────────────────────┐ │
 │  │             Hardware Blast Shield                                 │ │
-│  │   Boundary assertion (0x000..0x0FFF) + Critical register blacklist│ │
+│  │   Boundary assertion (0x000..0x0FFF) + Sensitive register audit   │ │
 │  └───────────────────────────────┬───────────────────────────────────┘ │
 └───────────────────────────────────┼────────────────────────────────────┘
                                     │ Dispatched to
@@ -114,7 +114,7 @@ If you have an unadapted model (Jiaolong, Kuangshi, Yaoshi, Jiguang, Wujie, Yilo
 
 ### 📥 Option 1: Direct Download (Recommended)
 Download the standalone executable from the [Releases Page](https://github.com/faintonce/open-revo/releases):
-1. Download `OpenRevo.exe` (~2MB);
+1. Download `open-revo.exe` (~10MB) or the 7z portable archive (~3MB);
 2. Run as Administrator;
 3. Taking over the official control center is recommended to prevent conflicts.
 

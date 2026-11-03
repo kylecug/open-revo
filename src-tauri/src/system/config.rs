@@ -122,6 +122,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub battery_hardware_limit_enabled: bool, // Experimental hardware platform override for true cutoff
     #[serde(default)]
+    pub raw_gateway_enforce: bool, // false = audit protected raw writes, true = block them
+    #[serde(default)]
     pub usb_charge_enabled: bool,
     #[serde(default)]
     pub ac_recovery_enabled: bool,
@@ -445,6 +447,7 @@ impl Default for AppConfig {
 
             battery_mode: "balance".to_string(),
             battery_hardware_limit_enabled: false,
+            raw_gateway_enforce: false,
             usb_charge_enabled: false,
             ac_recovery_enabled: false,
             high_perf_scheme: true,

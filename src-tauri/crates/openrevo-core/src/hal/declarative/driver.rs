@@ -191,7 +191,9 @@ impl MechrevoHardwareHAL for DeclarativeHardwareDriver {
             return Ok(());
         }
 
-        Ok(())
+        Err(HalError::UnsupportedModel(
+            "set_battery_limit not defined in driver manifest".to_string(),
+        ))
     }
 
     fn set_fan_boost(&self, active: bool) -> Result<(), HalError> {
@@ -282,10 +284,25 @@ impl MechrevoHardwareHAL for DeclarativeHardwareDriver {
                     .and_then(|rule| extract_value_from_buffer(&out_buf, rule.offset, &rule.value_type))
                     .unwrap_or(0) as u16;
 
-                let gpu_rpm = parse_rules
+                let mut gpu_rpm = parse_rules
                     .get("gpu_rpm")
                     .and_then(|rule| extract_value_from_buffer(&out_buf, rule.offset, &rule.value_type))
                     .unwrap_or(0) as u16;
+
+                // Some firmwares return one fan per call, so the second fan needs its own command.
+                if let Some(ActionDef::BufferInvoke { input: second_input, parse: Some(second_parse), .. }) =
+                    self.manifest.actions.get("read_second_fan_rpm")
+                {
+                    let second_bytes: Vec<u8> = second_input
+                        .iter()
+                        .filter_map(|v| v.as_u64().map(|n| n as u8))
+                        .collect();
+                    let second_buf = self.execute_buffer_action(&second_bytes)?;
+                    gpu_rpm = second_parse
+                        .get("gpu_rpm")
+                        .and_then(|rule| extract_value_from_buffer(&second_buf, rule.offset, &rule.value_type))
+                        .unwrap_or(0) as u16;
+                }
 
                 return Ok((cpu_rpm, gpu_rpm));
             }

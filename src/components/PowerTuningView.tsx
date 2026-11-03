@@ -48,6 +48,13 @@ export const PowerTuningView: React.FC = () => {
   });
 
   const [loading, setLoading] = useState(false);
+  const [supportsChargeLimit, setSupportsChargeLimit] = useState(true);
+
+  useEffect(() => {
+    invoke<{ battery_charge_limit?: boolean }>('get_model_capabilities')
+      .then((caps) => setSupportsChargeLimit(caps?.battery_charge_limit !== false))
+      .catch((e) => console.warn('Failed to load model capabilities:', e));
+  }, []);
 
   useEffect(() => {
     invoke<PowerSettingsInfo>('get_power_settings')
@@ -510,14 +517,21 @@ export const PowerTuningView: React.FC = () => {
           <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
             电池健康
           </div>
-          <div style={{ fontSize: '9.5px', color: 'var(--text-dim)' }}>
-            主板硬件级充电控制 · 电池健康长寿模式
-          </div>
+          {supportsChargeLimit && (
+            <div style={{ fontSize: '9.5px', color: 'var(--text-dim)' }}>
+              主板硬件级充电控制 · 电池健康长寿模式
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: '14px', alignItems: 'center' }}>
+          {!supportsChargeLimit && (
+            <div className="sys-row-desc">
+              此机型的固件未提供充电上限接口，官方控制中心同样没有此选项，电池将按系统默认方式充电。
+            </div>
+          )}
           {/* Left: 3 Radio Modes with Exact OEM Copy */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {supportsChargeLimit && <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {/* Mode 1: 长效模式 */}
             <div
               onClick={() => handleSelectBatteryMode('long_life')}
@@ -580,7 +594,7 @@ export const PowerTuningView: React.FC = () => {
                 </div>
               </div>
             </div>
-          </div>
+          </div>}
 
           {/* Right: Real-time Animated Battery Gauge */}
           <div className="battery-gauge-box">

@@ -4,6 +4,7 @@ import { listen, emit } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { getCurrentWindow, currentMonitor, LogicalSize, LogicalPosition } from '@tauri-apps/api/window';
 import { CustomPluginItem } from '../PluginsView';
+import { createAuditedInvoke } from '../../plugins/pluginAudit';
 
 export interface ExtensionSlotProps {
   name: string;
@@ -72,7 +73,7 @@ export const ExtensionSlot: React.FC<ExtensionSlotProps> = ({
     if (!matchingPlugin) return;
 
     (window as any).__OPENREVO_BRIDGE__ = {
-      invoke,
+      invoke: createAuditedInvoke(matchingPlugin.id),
       listen: (event: string, handler: any) => listen(event, handler),
       emit: (event: string, payload: any) => emit(event, payload),
       getCurrentWebviewWindow: () => getCurrentWebviewWindow(),
@@ -119,6 +120,7 @@ export const ExtensionSlot: React.FC<ExtensionSlotProps> = ({
         ref={iframeRef}
         srcDoc={pluginHtml}
         title={`Slot: ${name}`}
+        sandbox="allow-scripts allow-forms allow-same-origin"
         style={{
           width: '100%',
           height: height,

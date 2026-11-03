@@ -6,5 +6,6 @@
   "description": "激活底层 EC 平台门控以真实生效 60%/80% 硬件限电",
   "type": "slot",
   "target_slot": "power.hardware_limit",
-  "slot_height": "36px"
+  "slot_height": "36px",
+  "permissions": ["power:control"]
 }

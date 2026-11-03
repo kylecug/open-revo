@@ -90,8 +90,8 @@ OpenRevo 坚决反对“无脑开 Webview”。我们确立了**按需分配运�
 笔记本硬件涉及高压供电、功耗墙释放与风扇转速。任何代码错误或越权写入都可能导致主板断电甚至硬件损坏。所有插件开发必须遵守以下铁律：
 
 1. **绝对禁止裸物理寄存器交互（Rule 4 硬件资产钥匙库守则）**：
-   * 严禁在插件中请求类似 `ec_write(0x1844, 0x01)` 或 dump 整块 EC RAM。
-   * OpenRevo 仅对外暴露**“语义化硬件控制指令”**（如 `set_fan_boost(true)`）。
+   * 插件应优先使用**“语义化硬件控制指令”**（如 `set_fan_boost(true)`），不要 dump 整块 EC RAM。
+   * 只有语义化指令无法满足需求时，才使用第 13 节的底层驱动网关。
 2. **硬件物理边界防呆（Guardrails）**：
    * 功耗墙调节范围由机型固件严格钳位（例如 PL4 必须 `<= 255W`，防 0xFF 翻转单字节溢出为 45W 慢充）。
    * 电池养护限额严格限制在 `60% ~ 100%` 之间。
@@ -157,7 +157,7 @@ OpenRevo 坚决反对“无脑开 Webview”。我们确立了**按需分配运�
 | `entry` | `string` | 可选 | `widget`/`tab`/`service` | 入口相对路径，如 `index.html` 或 `welcome.rhai` |
 | `window` | `object` | 可选 | `widget`/`tab`/`skin`/`shell` | 视窗高级几何与外廓属性（详见下方 `window` 子对象详解） |
 | `telemetry` | `object` | 可选 | 全类型 | 声明硬件遥测需求（见下文防独显唤醒机制） |
-| `permissions` | `string[]`| 可选 | 全类型 | 声明所需权限（未声明将被安全网关拦截） |
+| `permissions` | `string[]`| 可选 | 全类型 | 声明所需权限。**过渡期内未声明只会输出警告，不会拦截**，后续版本将改为拦截，请提前补齐 |
 | `watchers` / `rules` | `object[]` | 可选 | 全类型 | **【声明式自动化规则总线】**无需 Webview 视窗，宿主内核统一调度温度联动、游戏切模与硬件保护规则 |
 | `shortcuts` | `object[]` | 可选 | 全类型 | **【声明式全局快捷键总线】**Ring3 穿透级热键绑定，自动联动机甲 OSD 弹窗与动作流 |
 | `service` | `object` | 可选 | `tab`/`widget`/`slot` | **【声明式伴随提权服务 / Sidecar】**声明插件依赖的后端本地原生进程服务（见下方 `service` 子对象详解） |
@@ -389,16 +389,15 @@ type ShortcutAction =
 #### 核心 IPC 军火库速查：
 * **`invoke('get_raw_ec_capabilities') -> RawEcCapabilities`**：嗅探当前物理机器已就绪的模具通信协议列表（如判断本机是同方 IOCTL 还是宝龙达 Mailbox）。
 * **`invoke('raw_ec_read', { request: { protocol: string, address: number } }) -> number`**：从指定模具协议的 EC RAM 物理地址读取 1 字节数值（返回 `0x00 ~ 0xFF`）。
-* **`invoke('raw_ec_write', { request: { protocol: string, address: number, value: number } }) -> boolean`**：向指定模具协议的 EC RAM 物理地址写入 1 字节数值。受物理防爆盾严格保护。
+* **`invoke('raw_ec_write', { request: { protocol: string, address: number, value: number } }) -> boolean`**：向指定模具协议的 EC RAM 物理地址写入 1 字节数值，并经过防爆盾校验（规则见下）。
 * **`invoke('raw_mailbox_invoke', { request: { in_bytes: number[] } }) -> number[]`**：向宝龙达等邮箱协议模具直接下发原始字节流并返回响应报文。
 
 #### 硬件物理防爆盾（Hardware Blast Shield）与安全规范：
 1. **地址边界限制**：物理地址必须严格位于 `0x0000 ~ 0x0FFF` 之间，超出即拒绝执行；
-2. **禁区写入熔断**：内核底层硬编码拦截致命保留引脚（如 `0x0000` 复位极值触发），杜绝主板永久变砖；
-3. **权限清单隔离**：插件必须在 `manifest.json` 中显式声明 `"permissions": ["hardware:raw_ec_read", "hardware:raw_ec_write"]`；
-4. **市场审核认证机制**：
-   - **官方认证徽章（Verified by OpenRevo）**：代码经过审计，小白用户可放心启用；
-   - **社区未认证高危插件（Community Experimental）**：带有高危警告角标，首次启用时强制弹出红色确认对话框，用户自担硬件风险。
+2. **复位保留值拦截**：向 `0x0000` 写入 `0xFF` 会被拒绝；
+3. **敏感寄存器与邮箱（过渡期）**：写入电池、功耗、风扇等敏感寄存器，以及调用 `raw_mailbox_invoke`，目前只记录审计日志并放行。配置项 `raw_gateway_enforce` 设为 `true` 后，这些操作会被拦截；
+4. **权限声明（过渡期）**：请在 `manifest.json` 中声明 `"permissions": ["hardware:raw_ec_read", "hardware:raw_ec_write", "hardware:raw_mailbox"]` 中实际用到的项。未声明目前只会在控制台输出警告，后续版本将改为拦截；
+5. **信任边界**：防爆盾只校验底层网关请求。插件 iframe 目前仍可访问宿主桥接对象，声明了 `service` 的插件还能以管理员权限运行原生程序，因此安装插件等同于信任其代码。
 ### 14. 公共监听与自动化规则总线 (Universal Watcher & Trigger Hub)
 为彻底解决社区开发者**“为了跑几行后台监控逻辑，被迫开一个隐藏透明挂件偷跑轮询”**的痛点与能耗弊端，OpenRevo 现已内置原生的**微内核公共监听与反应中心（Watcher & Trigger Hub）**。
 
@@ -408,7 +407,7 @@ type ShortcutAction =
 * **零额外内存与视窗（Zero GUI / 0 MB）**：彻底告别“隐形 Webview2 挂件”，纯规则插件无需编写任何 HTML/JS 界面；
 * **防后台休眠与精准触发**：由 Rust 内核的原生无锁心跳统一调度，彻底免疫 Windows/Chromium 对后台隐藏窗口的计时器降频节流；
 * **防独显唤醒守则延续**：若注册的规则仅关注 CPU 或电源，NVIDIA 独立显卡严格保持 D3Cold 零功耗深睡；
-* **物理防爆盾时序保护**：规则中涉及的所有 EC 寄存器写入，严格受到 Hardware Blast Shield 的地址边界校验与互斥锁保护。
+* **物理防爆盾时序保护**：规则中涉及的所有 EC 寄存器写入，都经过 Hardware Blast Shield 的地址边界校验；敏感寄存器的处理方式与第 13 节相同（过渡期内审计放行）。
 
 #### 2. 清单声明式规则示例 (`manifest.json`)
 开发者可在插件的 `manifest.json` 中直接通过 `watchers`（或 `rules`）声明自动化规则，宿主加载插件时自动生效，禁用插件时自动析构：

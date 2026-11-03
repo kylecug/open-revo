@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-windows:
+    name: Type Check & Unit Tests (Windows x64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # pnpm/action-setup@v4 bundles an old pnpm that crashes on this repo's pnpm-workspace.yaml.
+      - name: Setup pnpm
+        run: npm install -g pnpm@10
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust Dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install Frontend Dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Also produces ../dist, which tauri::generate_context! needs for the Rust steps below.
+      - name: Type Check & Build Frontend
+        run: pnpm build
+
+      - name: Check Rust Workspace
+        working-directory: src-tauri
+        run: cargo check --workspace --all-targets
+
+      - name: Run Rust Unit Tests
+        working-directory: src-tauri
+        shell: pwsh
+        run: |
+          # Test executables lack the manifest tauri-build embeds, so they would load comctl32 v5
+          # and exit with STATUS_ENTRYPOINT_NOT_FOUND.
+          $sep = [char]0x1f
+          $env:CARGO_ENCODED_RUSTFLAGS = "-Clink-arg=/MANIFEST:EMBED$sep-Clink-arg=/MANIFESTDEPENDENCY:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"
+          # These model_engine tests assert on live hardware state that CI runners do not have.
+          cargo test --workspace --lib --no-fail-fast -- `
+            --skip system::model_engine::tests::test_sovereign_contracts_assembly `
+            --skip system::model_engine::tests::test_sync_preserves_user_alias_and_presets `
+            --skip system::model_engine::tests::test_truth_reconstructor_reconstruct

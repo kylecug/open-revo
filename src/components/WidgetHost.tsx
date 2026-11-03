@@ -5,6 +5,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { getCurrentWindow, currentMonitor } from '@tauri-apps/api/window';
 import { LogicalSize, LogicalPosition } from '@tauri-apps/api/dpi';
 import { HardwareState, PowerMode } from '../types/hardware';
+import { auditPluginAction, createAuditedInvoke } from '../plugins/pluginAudit';
 import { Flame, Fan, X, RotateCcw } from 'lucide-react';
 
 interface WidgetHostProps {
@@ -31,7 +32,7 @@ export const WidgetHost: React.FC<WidgetHostProps> = ({ pluginId }) => {
   // 1. Expose Universal Tauri & OpenRevo bridge to iframe
   useEffect(() => {
     (window as any).__OPENREVO_BRIDGE__ = {
-      invoke,
+      invoke: createAuditedInvoke(pluginId),
       listen: (event: string, handler: any) => listen(event, handler),
       emit: (event: string, payload: any) => emit(event, payload),
       getCurrentWebviewWindow: () => getCurrentWebviewWindow(),
@@ -123,8 +124,11 @@ export const WidgetHost: React.FC<WidgetHostProps> = ({ pluginId }) => {
   // 4. Listen to postMessage from sandboxed iframe
   useEffect(() => {
     const handleMessage = async (e: MessageEvent) => {
+      // Security: Only accept messages from this host's own plugin iframe
+      if (!iframeRef.current || e.source !== iframeRef.current.contentWindow) return;
       if (!e.data || typeof e.data !== 'object') return;
       const { action, payload } = e.data;
+      auditPluginAction(pluginId, action);
       try {
         switch (action) {
           case 'START_DRAGGING':

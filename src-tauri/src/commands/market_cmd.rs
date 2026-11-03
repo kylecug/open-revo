@@ -46,8 +46,8 @@ pub fn get_plugin_host_capabilities() -> PluginHostCapabilities {
 #[tauri::command]
 pub fn open_external_url(url: String) -> Result<bool, String> {
     let trimmed = url.trim();
-    if !trimmed.starts_with("https://") && !trimmed.starts_with("http://") {
-        return Err("Security violation: Only http:// and https:// URLs are permitted".into());
+    if !is_safe_external_url(trimmed) {
+        return Err("Security violation: Only well-formed http:// and https:// URLs are permitted".into());
     }
 
     #[cfg(target_os = "windows")]
@@ -55,8 +55,9 @@ pub fn open_external_url(url: String) -> Result<bool, String> {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-        let _ = std::process::Command::new("cmd")
-            .args(&["/c", "start", "", trimmed])
+        // Never route URLs through cmd.exe: its parser treats '&' and '|' in a URL as command separators.
+        let _ = std::process::Command::new("rundll32.exe")
+            .args(&["url.dll,FileProtocolHandler", trimmed])
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| format!("Failed to open system browser: {}", e))?;
@@ -296,6 +297,11 @@ pub fn install_plugin_from_url(
 // Internal Security & Filesystem Helpers
 // -----------------------------------------------------------------------------
 
+fn is_safe_external_url(url: &str) -> bool {
+    (url.starts_with("https://") || url.starts_with("http://"))
+        && !url.chars().any(|c| c.is_whitespace() || c.is_control())
+}
+
 fn is_safe_plugin_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 64
@@ -506,4 +512,18 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_safe_external_url;
+
+    #[test]
+    fn external_url_validation() {
+        assert!(is_safe_external_url("https://example.com/a?x=1&y=2"));
+        assert!(is_safe_external_url("http://example.com"));
+        assert!(!is_safe_external_url("file:///C:/Windows/System32/calc.exe"));
+        assert!(!is_safe_external_url("https://example.com/a b"));
+        assert!(!is_safe_external_url("https://example.com/\ncalc"));
+    }
 }

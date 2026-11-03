@@ -229,7 +229,21 @@ pub fn start_bld_fan_heartbeat() {
         .expect("Failed to spawn bld fan heartbeat thread");
 }
 
+/// The Ring0 fan registers are only verified on manifests that declare direct RPM control.
+/// Other mailbox machines have a different EC, so they must never load this driver or write there.
+fn supports_bld_ec_fan_control() -> bool {
+    crate::hal::declarative::load_matched_manifest()
+        .map(|m| {
+            m.capabilities.fan_control_mode.as_deref() == Some("direct_rpm_clamp")
+                || m.capabilities.fan_boost_mode.as_deref() == Some("direct_rpm_clamp")
+        })
+        .unwrap_or(false)
+}
+
 pub fn set_bld_fan_manual_clamp(cpu_rpm: u16, gpu_rpm: u16) {
+    if !supports_bld_ec_fan_control() {
+        return;
+    }
     crate::log_info!("BLD_FAN", "set_bld_fan_manual_clamp requested: CPU={} RPM, GPU={} RPM", cpu_rpm, gpu_rpm);
     *BLD_FAN_MODE.write() = BldFanControlMode::ManualClamp { cpu_rpm, gpu_rpm };
     start_bld_fan_heartbeat();
@@ -257,6 +271,9 @@ pub fn set_bld_fan_curve(
     ramp_enabled: bool,
     ramp_speed_ms: u16,
 ) {
+    if !supports_bld_ec_fan_control() {
+        return;
+    }
     crate::log_info!(
         "BLD_FAN",
         "set_bld_fan_curve requested: CPU points={}, GPU points={}, ramp_enabled={}, ramp_speed_ms={}",
@@ -272,6 +289,9 @@ pub fn set_bld_fan_curve(
 }
 
 pub fn restore_bld_fan_auto() {
+    if !supports_bld_ec_fan_control() {
+        return;
+    }
     crate::log_info!("BLD_FAN", "restore_bld_fan_auto requested: releasing clamp and restoring BIOS auto policy");
     *BLD_FAN_MODE.write() = BldFanControlMode::Auto;
     start_bld_fan_heartbeat();

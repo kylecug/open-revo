@@ -24,6 +24,11 @@ jobs:
   build-windows:
     name: Build & Package Windows (x64)
     runs-on: windows-latest
+    env:
+      # Each repository's builds must self-update from that repository, not from upstream.
+      OPENREVO_UPDATE_PUBKEY: ${{ vars.OPENREVO_UPDATE_PUBKEY }}
+      OPENREVO_UPDATE_GITHUB_URL: https://raw.githubusercontent.com/${{ github.repository }}/main/latest.json
+      OPENREVO_UPDATE_GITEE_URL: ${{ github.repository == 'faintonce/open-revo' && 'https://gitee.com/faintonce/open-revo/raw/master/latest.json' || format('https://raw.githubusercontent.com/{0}/main/latest.json', github.repository) }}
 
     steps:
       - name: Checkout Repository
@@ -36,10 +41,9 @@ jobs:
         with:
           node-version: 20
 
+      # pnpm/action-setup@v4 bundles an old pnpm that crashes on this repo's pnpm-workspace.yaml.
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: false
+        run: npm install -g pnpm@10
 
       - name: Setup Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -61,7 +65,7 @@ jobs:
               Write-Host "[*] Running Vault Leak Gatekeeper..." -ForegroundColor Cyan
               & ./scripts/check_vault_leaks.ps1
           } else {
-              Write-Host "[*] Vault leak script not present in repository checkout, skipping check." -ForegroundColor Yellow
+              Write-Host "::warning::Vault leak script is not in the repository checkout, so this gate was skipped."
           }
 
       - name: Build Standalone Executable
@@ -124,6 +128,44 @@ jobs:
           # Set output for subsequent steps
           echo "tag_name=$tag" >> $env:GITHUB_OUTPUT
           echo "app_version=$ver" >> $env:GITHUB_OUTPUT
+
+      - name: Sign Release Artifacts (minisign)
+        shell: pwsh
+        env:
+          MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:MINISIGN_SECRET_KEY) -or [string]::IsNullOrWhiteSpace($env:OPENREVO_UPDATE_PUBKEY)) {
+              if ($env:GITHUB_REF_TYPE -eq 'tag') {
+                  Write-Host "::error::Tag builds must be signed. Set the MINISIGN_SECRET_KEY secret and the OPENREVO_UPDATE_PUBKEY variable."
+                  exit 1
+              }
+              Write-Host "::warning::Signing key is not configured, so this non-tag build is unsigned."
+              exit 0
+          }
+
+          $toolDir = Join-Path $env:RUNNER_TEMP "minisign"
+          New-Item -ItemType Directory -Path $toolDir -Force | Out-Null
+          $zip = Join-Path $toolDir "minisign.zip"
+          Invoke-WebRequest -Uri "https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-win64.zip" -OutFile $zip
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLower() -ne "37b600344e20c19314b2e82813db2bfdcc408b77b876f7727889dbd46d539479") {
+              Write-Host "::error::minisign archive hash mismatch."
+              exit 1
+          }
+          Expand-Archive -LiteralPath $zip -DestinationPath $toolDir -Force
+          $minisign = Join-Path $toolDir "minisign-win64/x86_64/minisign.exe"
+
+          $keyFile = Join-Path $env:RUNNER_TEMP "minisign.key"
+          Set-Content -LiteralPath $keyFile -Value $env:MINISIGN_SECRET_KEY -Encoding ascii
+          try {
+              Get-ChildItem -LiteralPath "dist_artifacts" -File | ForEach-Object {
+                  & $minisign -S -s $keyFile -m $_.FullName
+                  if ($LASTEXITCODE -ne 0) { throw "Failed to sign $($_.Name)" }
+                  & $minisign -V -P $env:OPENREVO_UPDATE_PUBKEY -m $_.FullName
+                  if ($LASTEXITCODE -ne 0) { throw "Failed to verify $($_.Name)" }
+              }
+          } finally {
+              [System.IO.File]::Delete($keyFile)
+          }
 
       - name: Upload Build Artifacts (Workflow Storage)
         uses: actions/upload-artifact@v4
