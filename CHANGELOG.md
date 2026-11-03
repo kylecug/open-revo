@@ -20,7 +20,8 @@
 ### 🐛 修复 (Fixed)
 - 修复 `open_external_url` 与 `open_log_file` 经 `cmd.exe` 解析参数导致的命令注入风险。
 - 插件宿主只接受来自自身 iframe 的 `postMessage`；微插槽 iframe 增加 `sandbox` 属性。
-- 修复发布流水线未指定 pnpm 版本的问题。
+- 修复发布流水线的 pnpm 安装失败问题。
+- 星耀 14 (P916F) 固件不提供充电上限接口：隐藏相关选项；清单未实现充电上限时不再静默返回成功。
 
 ### 🛡️ 硬件与安全 (Security / Hardware)
 - 

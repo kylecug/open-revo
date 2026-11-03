@@ -379,7 +379,9 @@ impl EcBridge {
                     crate::hal::BatteryHealthMode::Balance
                 };
                 let hal = crate::hal::get_hardware_driver();
-                let _ = hal.set_battery_health(health_mode);
+                if let Err(e) = hal.set_battery_health(health_mode) {
+                    crate::log_warn!("EC_BATTERY", "Battery limit {}% was not applied: {}", limit, e);
+                }
                 return;
             }
 

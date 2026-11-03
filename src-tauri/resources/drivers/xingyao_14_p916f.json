@@ -17,7 +17,7 @@
     "discrete_gpu": false,
     "water_cooling": false,
     "fan_custom_curve": false,
-    "battery_charge_limit": true,
+    "battery_charge_limit": false,
     "power_modes": ["office", "balance", "turbo"],
     "power_mode_watts": {
       "office": 20,

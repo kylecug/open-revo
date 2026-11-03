@@ -191,7 +191,9 @@ impl MechrevoHardwareHAL for DeclarativeHardwareDriver {
             return Ok(());
         }
 
-        Ok(())
+        Err(HalError::UnsupportedModel(
+            "set_battery_limit not defined in driver manifest".to_string(),
+        ))
     }
 
     fn set_fan_boost(&self, active: bool) -> Result<(), HalError> {
